@@ -1,7 +1,8 @@
 # Package Imports
 import pandas as pd
 # import dat
-from blob_file_finder import convert_json_jsonl
+# from blob_file_finder import list_blob_elements
+from convert_json_to_nl import *
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
@@ -11,7 +12,7 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 yesterday = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
 
 # Creating source objects list to read from GCS
-# source_objects_def = convert_json_jsonl("game_data_giray")
+# source_objects_def = list_blob_elements("game_data_giray")
 
 # Default Arguments
 default_args = {
@@ -30,18 +31,16 @@ with DAG(dag_id= 'storage_to_bq',
         ) as dag:
 
 
-
-
 # Transfer .json file on storage to BQ
         gcs_to_bq_load_file = GoogleCloudStorageToBigQueryOperator(
         task_id='gcs_to_bq_load_file',
-        bucket='game_data_giray',
+        bucket='game_data_giray_jsonl_conv',
         # source_objects=f"{source_objects_def}",
-        source_objects= ['*.json'],
+        source_objects= ['*'],
         source_format='NEWLINE_DELIMITED_JSON',
         encoding = 'UTF=32',
         # destination_project_dataset_table='birincidingil.capable-memory-417812.premiership',
-        destination_project_dataset_table='capable-memory-417812.premiership.premiership',
+        destination_project_dataset_table='capable-memory-417812.premiership.*',
         autodetect = True,
         create_disposition='CREATE_IF_NEEDED',
         write_disposition='WRITE_TRUNCATE'

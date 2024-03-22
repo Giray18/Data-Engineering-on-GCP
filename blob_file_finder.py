@@ -7,48 +7,47 @@ import glob
 import numpy as np
 # import dat
 from datetime import datetime, timedelta, date
+from google.cloud import bigquery
+from google.cloud.exceptions import NotFound
+import re
 
 
-# def convert_json_jsonl(bucket_name, blob_name = []):
-#     """Write and read a blob from GCS using file-like IO"""
+# def list_blob_elements(bucket_name):
+#     """Lists blob elements in mentioned bucket"""
 
 #     storage_client = storage.Client()
 #     bucket = storage_client.bucket(bucket_name)
 #     blobs = storage_client.list_blobs(bucket_name)
 #     # blob = bucket.blob(blob_name)
+#     list_blobs = []
    
 #     for blob in blobs:
-#         d = json.loads(blob.download_as_string(client=None))
-#         result = [json.dumps(values) for key,values in d.items()]
-#         ndjson_str = '\n'.join(result)
-
-#         with blob.open("w") as f:
-#             f.write(ndjson_str)
+#         list_blobs.append(blob.name)
         
-#     return 'conversion_completed'
+#     return list_blobs
 
-
-
-def convert_json_jsonl(path = []):
-    ''' This function reads multiple json files from location passed as parameter 
-    and transposes them by a condition '''
-    df = pd.read_json(path)
-    if len(df.columns) > len(df.index):
-        df = df.transpose()
-    else:
-        df
-    game_ids = df.index.to_list()
-    col_with_json_val = [df[i].name for i in df.columns if "{" in str(df[i].iloc[0]) and ":" in str(df[i].iloc[0])]
-    for col in df.columns:
-        if df[col].dtype == "object" and df[col].name not in col_with_json_val:
-            try:
-                df[col] = [i.lower() for i in df[col]]
-                df[col] = [i.replace('&', "and") for i in df[col]]
-            except AttributeError:
-                # pass
-                for c in game_ids:
-                    df[col][c] =  [v.lower() for v in df[col][c]]
-                    df[col][c] =  [v.replace('&', "and") for v in df[col][c]]
-    # df = df.to_json("/home/vforvalbuena/GCP_AIRFLOW/newline.json",orient="records",lines=True)
-    df = df.to_json(orient="records",lines=True)
-    return df
+def hello_gcs(event, context):
+    bq_client = bigquery.Client()
+    bucket = storage.Client().bucket("bucket-name")
+    for blob in bucket.list_blobs(prefix="folder-name/"):
+        if ".csv" in blob.name: #Checking for csv blobs as list_blobs also returns folder_name
+           job_config = bigquery.LoadJobConfig(
+               autodetect=True,
+               skip_leading_rows=1,
+               source_format=bigquery.SourceFormat.CSV,
+           )
+           csv_filename = re.findall(r".*/(.*).csv",blob.name) #Extracting file name for BQ's table id
+           bq_table_id = "project-name.dataset-name."+csv_filename[0] # Determining table name
+       
+           try: #Check if the table already exists and skip uploading it.
+               bq_client.get_table(bq_table_id)
+               print("Table {} already exists. Not uploaded.".format(bq_table_id))
+           except NotFound: #If table is not found, upload it.    
+               uri = "gs://bucket-name/"+blob.name
+               print(uri)
+               load_job = bq_client.load_table_from_uri(
+                   uri, bq_table_id, job_config=job_config
+               )  # Make an API request.
+               load_job.result()  # Waits for the job to complete.
+               destination_table = bq_client.get_table(bq_table_id)  # Make an API request.
+               print("Table {} uploaded.".format(bq_table_id))
