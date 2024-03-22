@@ -32,16 +32,32 @@ with DAG(dag_id= 'storage_to_bq',
 
 
 # Transfer .json file on storage to BQ
-        gcs_to_bq_load_file = GoogleCloudStorageToBigQueryOperator(
-        task_id='gcs_to_bq_load_file',
+        gcs_to_bq_load_file_1 = GoogleCloudStorageToBigQueryOperator(
+        task_id='gcs_to_bq_load_file_1',
         bucket='game_data_giray_jsonl_conv',
         # source_objects=f"{source_objects_def}",
-        source_objects= ['*'],
+        source_objects= ['epl_2022_2023_07_02_2023.json'],
         source_format='NEWLINE_DELIMITED_JSON',
         encoding = 'UTF=32',
         # destination_project_dataset_table='birincidingil.capable-memory-417812.premiership',
-        destination_project_dataset_table='capable-memory-417812.premiership.*',
+        destination_project_dataset_table='capable-memory-417812.premiership.davar_1',
         autodetect = True,
         create_disposition='CREATE_IF_NEEDED',
-        write_disposition='WRITE_TRUNCATE'
-        ,dag=dag)
+        write_disposition='WRITE_TRUNCATE')
+
+
+        gcs_to_bq_load_file_2 = GoogleCloudStorageToBigQueryOperator(
+        task_id='gcs_to_bq_load_file_2',
+        bucket='game_data_giray_jsonl_conv',
+        # source_objects=f"{source_objects_def}",
+        source_objects= ['epl_2022_2023_07_02_2024.json'],
+        source_format='NEWLINE_DELIMITED_JSON',
+        encoding = 'UTF=32',
+        # destination_project_dataset_table='birincidingil.capable-memory-417812.premiership',
+        destination_project_dataset_table='capable-memory-417812.premiership.davar_2',
+        autodetect = True,
+        create_disposition='CREATE_IF_NEEDED',
+        write_disposition='WRITE_TRUNCATE')
+
+        #Dependencies
+        gcs_to_bq_load_file_1 >> gcs_to_bq_load_file_2
