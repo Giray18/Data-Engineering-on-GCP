@@ -6,6 +6,7 @@ from airflow import DAG
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.operators.python_operator import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 # Creating Variables and Arguments
 yesterday = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
@@ -67,3 +68,15 @@ with DAG(dag_id= 'storage_to_bq',
 
         # #Dependencies
         # gcs_to_bq_load_file_1 >> gcs_to_bq_load_file_2
+
+         # Triggering next dag
+        trigger = TriggerDagRunOperator(
+        task_id="trigger_dependent_dag",
+        trigger_dag_id="analytic_queries_as_table",
+        # conf={'wait_for_completion':''}
+        wait_for_completion=False,
+        deferrable=False,  
+        dag=dag)
+
+        #Dependencies
+        python_task >> trigger

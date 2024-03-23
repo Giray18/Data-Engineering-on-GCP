@@ -39,11 +39,11 @@ def convert_json_jsonl(bucket_name,project_id):
         # Getting json file content as string
         JSON_file = json.loads(blob.download_as_string(client=None))
         # Converting to JSON to JSON New Line
-        nl_JSON_file = '\n'.join([json.dumps(JSON_file)])
+        # nl_JSON_file = '\n'.join([json.dumps(JSON_file)])
         # That part is alternative if outer keys would like to be dispersed
-            # nl_JSON_file = '\n'.join([json.dumps(JSON_file[outer_key], sort_keys=True) 
-            #               for outer_key in sorted(JSON_file.keys(),
-            #                                       key=lambda x: int(x))])
+        nl_JSON_file = '\n'.join([json.dumps(JSON_file[outer_key], sort_keys=True) 
+                          for outer_key in sorted(JSON_file.keys(),
+                                                  key=lambda x: int(x))])
         # Calling new bucket name meta
         bucket_new = storage_client.bucket(new_bucket)
         # Blob name creation for converted blobs
