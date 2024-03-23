@@ -8,7 +8,7 @@ from airflow.operators.python_operator import PythonOperator
 
 # Creating Variables and Arguments
 yesterday = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
-bucket_name = 'game_data_giray'
+bucket_name = 'tryoutdavar'
 project_id = 'capable-memory-417812'
 
 # Default Arguments
@@ -28,14 +28,14 @@ with DAG(dag_id= 'ingest_as_json_nl',
         default_args=default_args
         ) as dag:
 
-
+        # Runs json conversions
         python_task = PythonOperator(
         task_id='conversions',
         python_callable=convert_json_jsonl,
-        op_kwargs={'bucket_name': 'game_data_giray', 'project_id' : 'capable-memory-417812'},
+        op_kwargs={'bucket_name': 'tryoutdavar', 'project_id' : 'capable-memory-417812'},
         dag=dag)
 
-        # Runs json conversions
+        
         # conversions = convert_json_jsonl(bucket_name,project_id)
 
         # Triggering next dag
