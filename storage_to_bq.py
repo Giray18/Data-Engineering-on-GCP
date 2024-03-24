@@ -11,6 +11,7 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 # Creating Variables and Arguments
 yesterday = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
 
+# THIS APPROACH DID NOT USED 
 # Creating source objects list to read from GCS
 # source_objects_def = list_blob_elements("game_data_giray")
 
@@ -37,7 +38,7 @@ with DAG(dag_id= 'storage_to_bq',
         op_kwargs={'bucket_name': 'tryoutdavar_jsonl_conv', 'project_id' : 'capable-memory-417812'},
         dag=dag)
 
-
+#OPERATOR DID NOT USED IN THIS DAG INSTEAD A FUNCTION CALLED AND USED
 # Transfer .jsonl file on storage to BQ
         # gcs_to_bq_load_file_1 = GoogleCloudStorageToBigQueryOperator(
         # task_id='gcs_to_bq_load_file_1',

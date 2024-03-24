@@ -38,3 +38,18 @@ with DAG(dag_id= 'analytic_queries_as_table',
     write_disposition="WRITE_TRUNCATE",
     use_legacy_sql=False,
 )
+
+    top10_scoring_teams = BigQueryExecuteQueryOperator(
+    task_id="find_top_10_scoring_teams",
+    sql="""
+    WITH RECURSIVE 
+    game_scores AS(
+    SELECT SPLIT(REGEXP_EXTRACT_ALL(event[OFFSET(0)],r'\,(.*?)\.')[0],",") AS game_scores_goals FROM `capable-memory-417812.premiership.epl_2022_2023_07_02_2024`)
+    ,game_scores_by_teams AS(
+    SELECT REGEXP_REPLACE(game_scores_teams,r'\s[0-9]+','') AS team_name,RIGHT(game_scores_teams,1) AS goals FROM game_scores, UNNEST(game_scores_goals) AS game_scores_teams)
+    SELECT team_name, SUM(CAST(goals AS INT64)) AS total_goal FROM game_scores_by_teams GROUP BY team_name ORDER BY total_goal DESC LIMIT 10
+    """,
+    destination_dataset_table=f"capable-memory-417812.premiership.top10_scoring_teams",
+    write_disposition="WRITE_TRUNCATE",
+    use_legacy_sql=False,
+)

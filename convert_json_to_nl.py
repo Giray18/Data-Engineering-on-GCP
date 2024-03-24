@@ -54,23 +54,3 @@ def convert_json_jsonl(bucket_name,project_id):
         with blob.open("w") as f:
             f.write(nl_JSON_file)
     return 'files_on_bucket_converted_toJSONnl'
-
-
-# def convert_json_jsonl(bucket_name, project_id, blob_name = [], path = []):
-#     ''' This function reads multiple json files from location passed as parameter 
-#     and converts them to jsonl and saves into created bucket with an inner function
-#     if bucket exists uses existing bucket'''
-#     # New bucket creation
-#     new_bucket = crate_new_bucket(bucket_name,project_id)
-
-#     # Instantiating needed classes and methods
-#     storage_client = storage.Client(project_id)
-#     bucket = storage_client.bucket(bucket_name)
-#     blobs = storage_client.list_blobs(bucket_name)
-    
-#     # Loop through blobs in bucket and converting nljson with saving into new bucket path
-#     for blob in blobs:
-#         print(blob.name)
-#         df = pd.read_json("gs://{}/{}".format(bucket_name, blob.name)) 
-#         df.to_json(f'gs://{new_bucket}/{blob.name}',orient="records",lines=True)
-#     return 'json_files_converted_nljson'
