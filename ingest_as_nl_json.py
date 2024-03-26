@@ -25,16 +25,7 @@ default_args = {
 }
 
 
-def eben(**kwargs):
-    file_sensor_detect = GCSObjectsWithPrefixExistenceSensor(
-            task_id='gcs_polling',  
-            bucket= bucket_name,
-            prefix='epl_2022_2023_07_02_202',
-            # do_xcom_push=True,
-            dag=dag)
-    ti = kwargs['ti']
-    ti.xcom_push(key='dadan', value = file_sensor_detect )
-    return "ok"
+
 
 # DAG definitions
 with DAG(dag_id= 'ingest_as_json_nl',
@@ -44,12 +35,7 @@ with DAG(dag_id= 'ingest_as_json_nl',
         default_args=default_args
         ) as dag:
 
-        # Runs json conversions
-        python_task = PythonOperator(
-        task_id='conversions',
-        python_callable=convert_json_jsonl,
-        op_kwargs={'bucket_name': 'tryoutdavar', 'project_id' : 'capable-memory-417812'},
-        dag=dag)
+
 
 #         file_sensor_detect = GCSObjectsWithPrefixExistenceSensor(
 #                     task_id='gcs_polling',  
@@ -71,15 +57,84 @@ with DAG(dag_id= 'ingest_as_json_nl',
         #     ti.xcom_push(key='dadan', value = file_sensor_detect )
         #     return "ok"
 
-        eben_2 = PythonOperator(
-            task_id='eben_info',
-            python_callable= eben,
-            provide_context=True,
-            dag=dag
-        )
+        # def eben(**kwargs):
+        #     file_sensor_detect = GCSObjectsWithPrefixExistenceSensor(
+        #     task_id='gcs_polling',  
+        #     bucket= bucket_name,
+        #     prefix='epl_2022_2023_07_02_202',
+        #     # do_xcom_push=True,
+        #     dag=dag)
+        #     ti = kwargs['ti']
+        #     ti.xcom_push(key='dadan', value = file_sensor_detect )
+        #     return "ok"
+
+        # push_list = PythonOperator(
+        #     task_id='fetch_list',
+        #     python_callable= eben,
+        #     provide_context=True,
+        #     dag=dag
+        # )
+
+        file_sensor_detect = GCSObjectsWithPrefixExistenceSensor(
+            task_id='gcs_polling',  
+            bucket= bucket_name,
+            prefix='epl_2022_2023_07_02_202',
+            do_xcom_push=True,
+            dag=dag)
+
+        def pull_func(**kwargs):
+            ti = kwargs['ti']
+            value = ti.xcom_pull(task_ids='gcs_polling',key='return_value')
+            for i in value:
+                file_sensor = GCSObjectUpdateSensor(
+                bucket= bucket_name,
+                object= f'{i}', 
+                task_id=f"gcs_object_update_sensor_task_{i}",
+                timeout = 360,
+                dag=dag)
+                python_task = PythonOperator(
+                task_id='conversions',
+                python_callable=convert_json_jsonl,
+                op_kwargs={'bucket_name': 'tryoutdavar', 'project_id' : 'capable-memory-417812'},
+                dag=dag)
+            return value
+
+        get_list_and_convert = PythonOperator(
+        task_id='pull_task', 
+        python_callable=pull_func,
+        provide_context=True,
+        dag=dag)
+
+        # def loop_update():
+        #     get_list = PythonOperator(
+        #     task_id='pull_task_2', 
+        #     python_callable=pull_func,
+        #     provide_context=True,
+        #     dag=dag)
+        #     for i in get_list:
+        #         file_sensor = GCSObjectUpdateSensor(
+        #         bucket= bucket_name,
+        #         object= f'{i}', 
+        #         task_id="gcs_object_update_sensor_task_{i}",
+        #         timeout = 360,
+        #         dag=dag)
+
+        # loop_update_1 = PythonOperator(
+        # task_id='loop', 
+        # python_callable=loop_update,
+        # provide_context=True,
+        # dag=dag)
+
+        # # Runs json conversions
+        # python_task = PythonOperator(
+        # task_id='conversions',
+        # python_callable=convert_json_jsonl,
+        # op_kwargs={'bucket_name': 'tryoutdavar', 'project_id' : 'capable-memory-417812'},
+        # dag=dag)
 
 
-    #     # task_instance = TaskInstance(file_sensor_detect)
+
+        # task_instance = TaskInstance(file_sensor_detect)
         # dg = DagRun(dag_id= 'ingest_as_json_nl')
         # ti = dg.get_task_instance(task_id='gcs_polling')
         # # dg.xcom_pull
@@ -88,16 +143,9 @@ with DAG(dag_id= 'ingest_as_json_nl',
         # value = dg.xcom_pull(key = 'return_value',task_ids='gcs_polling')
         # value = ti.xcom_pull(key = 'return_value',task_ids='gcs_polling')
 
-        value = ti.xcom_pull(task_ids='eben_2',key='dadan')
+        # value = ti.xcom_pull(task_ids='fetch_list',key='dadan')
 
-        for i in ti.xcom_pull(task_ids='eben_2',key='dadan'):
-            file_sensor = GCSObjectUpdateSensor(
-            bucket= bucket_name,
-            object= f'{i}', 
-            task_id="gcs_object_update_sensor_task_{i}",
-            timeout = 360,
-            dag=dag
-    )
+
 
         
         # conversions = convert_json_jsonl(bucket_name,project_id)
@@ -112,4 +160,4 @@ with DAG(dag_id= 'ingest_as_json_nl',
         # dag=dag)
 
         # #Dependencies
-        # file_sensor_detect >> eben 
+        file_sensor_detect >> get_list_and_convert
