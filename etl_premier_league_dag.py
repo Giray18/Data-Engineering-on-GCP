@@ -262,6 +262,24 @@ with DAG(dag_id= 'etl_premier_league_dag',
             use_legacy_sql=False,
         )
 
-        # Dependencies
-        tg1 >> tg2 >> tg3
+        # On Task Group - 4 Deleting temp files uploded onto staging bucket
+        with TaskGroup('delete_from_staging') as tg4:
+            def delete_blob(bucket_name, project_id):
+                storage_client = storage.Client(project_id)
+                bucket = storage_client.get_bucket(bucket_name)
+                # list all objects in the directory
+                blobs = bucket.list_blobs(prefix='')
+                for blob in blobs:
+                    blob.delete()
+                return 'blobs deleted'
+
+            python_task = PythonOperator(
+                task_id='delete_staging_files',
+                python_callable=delete_blob,
+                op_kwargs={'bucket_name': bucket_name, 'project_id' : project_id},
+                dag=dag)
+
+
+        # Task Group Dependencies
+        tg1 >> tg2 >> tg3 >> tg4
 
