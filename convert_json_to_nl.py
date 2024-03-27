@@ -72,7 +72,7 @@ def crate_new_bucket(bucket_name, project_id):
     # Returning created/existing bucket name as variable
     return bucket_new
 
-def convert_json_jsonl(bucket_name,project_id):
+def convert_json_jsonl(bucket_name,project_id,file_name=[]):
     # Instantiating needed classes and methods
     storage_client = storage.Client(project_id)
     bucket = storage_client.bucket(bucket_name)
@@ -106,3 +106,5 @@ def convert_json_jsonl(bucket_name,project_id):
     with blob.open("w") as f:
         f.write(nl_JSON_file)
     return 'files_on_bucket_converted_toJSONnl'
+
+# def convert_single_file()
