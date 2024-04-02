@@ -22,29 +22,14 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.operators.python_operator import PythonOperator
 from airflow.providers.google.cloud.operators.bigquery import BigQueryExecuteQueryOperator
 
-# Creating Variables and Arguments
+# Creating Variables and Arguments (Parsing from Key vault could be used instead calling from a config file)
 yesterday = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
 bucket_name = variables.variables_dict()['bucket_name']
 project_id = variables.variables_dict()['project_id']
 converted_bucket_name = variables.variables_dict()['converted_bucket_name']
 
-# Default Arguments
-# default_args = {
-#     'start_date': yesterday,
-#     'email_on_failure': False,
-#     'email_on_retry': False,
-#     'retries': 1,
-#     'retry_delay': timedelta(minutes=1)
-# }
 
 # DAG definitions
-# with DAG(dag_id= 'etl_premier_league_dag',
-#         # catchup=False,
-#         start_date=datetime.datetime(2021, 1, 1),
-#         schedule_interval=None,
-#         # default_args=default_args
-#         ) as dag:
-
 with airflow.DAG(
     "etl_premier_league_dag",
     start_date=yesterday,
@@ -52,9 +37,10 @@ with airflow.DAG(
     schedule_interval=None,
     ) as dag:
 
-        # On Task Group - 1 Merging all stream files into one file and convert JSON to JSONL for big query upload also creates a new bucket
-        # if there is no one created for jsonl files
+        # On Task Group - 1 Merging all stream files into one file and convert JSON to JSONL for big query upload also creates a new bucket and sinks into new bucket as single file
+        # if there is no folder created before, new one being created created for jsonl files sink
         with TaskGroup('convert_json_to_jsonl') as tg1:
+            # Detecting needed files by prefix sensor
             file_sensor_detect = GCSObjectsWithPrefixExistenceSensor(
                 task_id='gcs_polling',  
                 bucket= bucket_name,
@@ -71,7 +57,7 @@ with airflow.DAG(
                 # Creates the new bucket if bucket already exists using existing name with conversion
                 if storage_client.bucket(bucket_name_conv).exists():
                     bucket_new  = bucket_name_conv
-                # If bucket does not exists crates it and gets its name
+                # If bucket does not exists creates it and gets its name
                 else:
                     bucket_new = storage_client.create_bucket(bucket_name_conv, location='europe-west8')
                     bucket_new.location = 'europe-west8'
@@ -81,31 +67,31 @@ with airflow.DAG(
                 return bucket_new
 
             def convert_json_jsonl(bucket_name,project_id,file_name=[],**kwargs):
+                # Getting file names as list from XCOM (Names published to XCOM in previous step)
                 ti = kwargs['ti']
                 value = ti.xcom_pull(task_ids='convert_json_to_jsonl.gcs_polling',key='return_value')
-                print(value)
                 # Instantiating needed classes and methods
                 storage_client = storage.Client(project_id)
                 bucket = storage_client.bucket(bucket_name)
                 blobs = storage_client.list_blobs(bucket_name)
-                # New bucket creation
+                # New bucket creation by calling another function
                 new_bucket = crate_new_bucket(bucket_name,project_id)
-                # Combine JSONS
+                # Combine JSON files into a single dict
                 d_json = {}
+                # Creating blob_name variable as global name (will change in following loop)
                 global blob_name
                 blob_name = 'temp_blob'
                 # Loop through blobs in bucket and converting nljson with saving into new bucket path
                 for blob in blobs:
                     if blob.name in value:
-                        # Getting json file content as string and converting to dict
-                        # JSON_file = json.loads(blob.download_as_string(client=None))
+                        # Getting json file content as string and appending to dict
                         d_json.update(json.loads(blob.download_as_string(client=None)))
                         # Blob name creation for converted blobs
-                        # blob_name = f'{blob.name}_converted_jsonl'
+                        # blob_name = f'{blob.name}_converted_jsonl' (This method will not be used since we will use only one delta load)
                         blob_name = 'epl_2022_2023_season_stats.json'
                 # Converting to JSON to JSON New Line
                 # nl_JSON_file = '\n'.join([json.dumps(d_json)])
-                # That part is alternative if outer keys would like to be dispersed
+                    # That part is alternative if outer keys would like to be dispersed
                 nl_JSON_file = '\n'.join([json.dumps(d_json[outer_key], sort_keys=True) 
                                     for outer_key in sorted(d_json.keys(),
                                                             key=lambda x: int(x))])
@@ -113,22 +99,24 @@ with airflow.DAG(
                 bucket_new = storage_client.bucket(new_bucket)
                 # Getting blob variable to apply read/write operations
                 blob = bucket_new.blob(blob_name)
-                # Writing new blob to new bucket
+                # Writing new blob to new bucket as single object (for single delta load to Big Query)
                 with blob.open("w") as f:
                     f.write(nl_JSON_file)
                 return 'files_on_bucket_converted_toJSONnl'
 
+            # Running conversion function above
             python_task = PythonOperator(
             task_id='conversions',
             python_callable=convert_json_jsonl,
             op_kwargs={'bucket_name': bucket_name, 'project_id' : project_id},
             dag=dag)
 
+            # First task group has 2 tasks first detecting files from ingestion storage then combining JSON files into one JSONL 
             file_sensor_detect >> python_task
 
 
-        # On Task Group - 2 Loading combined JSONL file into a BQ table. If table does not exists creates it 
-        # Code is capable fot adjusting notfound exception
+        # On Task Group - 2 Loading combined JSONL file into a BQ table. If table does not exists on Big Query creates it 
+        # Code is capable of adjusting notfound exception errors
         with TaskGroup('load_to_bq') as tg2:
             def write_to_bq(project_id, converted_bucket_name):
                 # Instantiating big query client
@@ -141,16 +129,15 @@ with airflow.DAG(
                     if ".json" in blob.name: 
                         # Parsing JSON file name to create table on BQ with same file name
                         json_filename = blob.name.split('.json')[0]
-                    #    json_filename = re.findall(r".*/(.*).json",blob.name) #Extracting file name for BQ's table id
-                        # Determining table name
+                        # Creating exact BQ table name structure
                         table_id = f"capable-memory-417812.premiership.{json_filename}" 
-                        try: # Check if table exists and operate TRUNCATE/WRITE ROWS
+                        try: # Check if table exists and operate TRUNCATE/WRITE ROWS if table exists
                             bq_client.get_table(table_id)
                             uri = f"gs://{converted_bucket_name}/{blob.name}"
-                            # Creating configs for load job operations (append)
+                            # Creating configs for load job operations
                             job_config = bigquery.LoadJobConfig(
                             autodetect=True,
-                            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+                            write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
                             source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON)
                             print("Table {} already exists. Rows append operation be done.".format(table_id))
                             load_job = bq_client.load_table_from_uri(
@@ -162,11 +149,11 @@ with airflow.DAG(
                             # Waits for the job to complete.
                             destination_table = bq_client.get_table(table_id)  
                             # Make an API request.
-                            print("Total {} rows exits on the table.".format(destination_table.num_rows))
-                        # If table is not found, upload it WRITE If table empty.  
-                        except NotFound:   
+                            print("Total {} rows exits on the table.".format(destination_table.num_rows)) 
+                        except NotFound:   # If table is not found, table created and data uploaded into it with WRITE If table statement. 
                             uri = f"gs://{converted_bucket_name}/{blob.name}"
                             print(uri)
+                            # Creating configs for load job operations
                             job_config = bigquery.LoadJobConfig(
                             autodetect=True,
                             write_disposition=bigquery.WriteDisposition.WRITE_EMPTY,
@@ -178,17 +165,19 @@ with airflow.DAG(
                             # Make an API request.
                             load_job.result()  
                             # Waits for the job to complete.
-                            destination_table = bq_client.get_table(table_id)  # Make an API request.
+                            destination_table = bq_client.get_table(table_id)  
                             print("Loaded {} rows.".format(destination_table.num_rows))
 
+            # Running loading function above
             python_task = PythonOperator(
                 task_id='loading_bq',
                 python_callable=write_to_bq,
                 op_kwargs={'converted_bucket_name': converted_bucket_name, 'project_id' : project_id},
                 dag=dag)
 
-        # On Task Group - 3 Creating tables/views on BQ for requested 
+        # On Task Group - 3 Creating tables/views on BQ for requested analytical queries
         with TaskGroup('analytical_queries') as tg3:
+            # Top 10 starting lined-up players 
             top10_starters = BigQueryExecuteQueryOperator(
             task_id="find_top_10_starter",
             sql="""
@@ -202,7 +191,7 @@ with airflow.DAG(
             write_disposition="WRITE_TRUNCATE",
             use_legacy_sql=False,
         )
-
+            # Top 10 most scoring teams 
             top10_scoring_teams = BigQueryExecuteQueryOperator(
             task_id="find_top_10_scoring_teams",
             sql="""
@@ -218,7 +207,7 @@ with airflow.DAG(
             use_legacy_sql=False,
         )
 
-
+            # Top 10 most offside chaught teams
             total_offsides_chart_all_teams = BigQueryExecuteQueryOperator(
             task_id="offside_chart",
             sql="""
@@ -232,7 +221,7 @@ with airflow.DAG(
             write_disposition="WRITE_TRUNCATE",
             use_legacy_sql=False,
         )
-
+            # Detailed goal-gameweek analysis view consisting of different metrics
             total_goal_chart_teams  = BigQueryExecuteQueryOperator(
             task_id="goal_chart_weekly",
             sql="""
@@ -284,6 +273,7 @@ with airflow.DAG(
                     blob.delete()
                 return 'blobs deleted'
 
+            # Running delete blob function
             python_task = PythonOperator(
                 task_id='delete_staging_files',
                 python_callable=delete_blob,
