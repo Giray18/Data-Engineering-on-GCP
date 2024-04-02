@@ -2,6 +2,7 @@
 import pandas as pd
 from bulk_load_to_bq import *
 from datetime import datetime, timedelta
+from airflow.contrib.sensors.gcs_sensor import GCSObjectUpdateSensor
 from airflow import DAG
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
@@ -30,6 +31,15 @@ with DAG(dag_id= 'storage_to_bq',
         schedule_interval=timedelta(days=1),
         default_args=default_args
         ) as dag:
+
+
+        file_sensor = GCSObjectUpdateSensor(
+        bucket='tryoutdavar_jsonl_conv',
+        object= 'epl_2022_2023_season_stats.json',
+        task_id="gcs_object_update_sensor_task",
+        timeout = 360,
+        dag=dag
+)
 
         # Runs big query loads
         python_task = PythonOperator(
@@ -70,9 +80,19 @@ with DAG(dag_id= 'storage_to_bq',
         # #Dependencies
         # gcs_to_bq_load_file_1 >> gcs_to_bq_load_file_2
 
+         # Triggering previous dag
+        trigger_1 = TriggerDagRunOperator(
+        task_id="trigger_dependent_dag_1",
+        trigger_dag_id="ingest_as_json_nl",
+        # conf={'wait_for_completion':''}
+        wait_for_completion=True,
+        deferrable=False,  
+        dag=dag)
+
+
          # Triggering next dag
-        trigger = TriggerDagRunOperator(
-        task_id="trigger_dependent_dag",
+        trigger_2 = TriggerDagRunOperator(
+        task_id="trigger_dependent_dag_2",
         trigger_dag_id="analytic_queries_as_table",
         # conf={'wait_for_completion':''}
         wait_for_completion=False,
@@ -80,4 +100,4 @@ with DAG(dag_id= 'storage_to_bq',
         dag=dag)
 
         #Dependencies
-        python_task >> trigger
+        trigger_1 >> file_sensor >> python_task >> trigger_2
