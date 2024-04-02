@@ -137,7 +137,7 @@ with airflow.DAG(
                             # Creating configs for load job operations
                             job_config = bigquery.LoadJobConfig(
                             autodetect=True,
-                            write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+                            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
                             source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON)
                             print("Table {} already exists. Rows append operation be done.".format(table_id))
                             load_job = bq_client.load_table_from_uri(
