@@ -65,7 +65,7 @@ def trigger_dag_gcf(data, context=None):
     #  --location=your-composer-region \
     #  --format="value(config.airflowUri)"
     web_server_url = (
-        "https://8a844893dd574c2ca3fbe18145cd6a3d-dot-europe-southwest1.composer.googleusercontent.com/home"
+        "https://XXXXXXXX-dot-europe-southwest1.composer.googleusercontent.com/home"
     )
     # Replace with the ID of the DAG that you want to run.
     dag_id = 'etl_premier_league_dag'
