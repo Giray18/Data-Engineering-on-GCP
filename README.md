@@ -9,7 +9,9 @@ Below is the flow diagram of established structure
  ![picture alt](flow_diagram.PNG)  
 
  ## Repo elements
- **analysis_dict.py** :
+ **etl_premier_league_dag_triggered.py** : One dag consisting of 4 task groups being triggered by Google cloud functions when new file added to ingestion bucket. 
+
+   **convert_json_to_jsonl** : Detects required files to be used on DAG by GCSObjectsWithPrefixExistenceSensor and pushes name of related files to XCOM storage.
  
 
 
