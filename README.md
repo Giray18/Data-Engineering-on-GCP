@@ -8,5 +8,9 @@ Below is the flow diagram of established structure
 ## Flow Diagram
  ![picture alt](flow_diagram.PNG)  
 
+ ## Repo elements
+ **analysis_dict.py** :
+ 
+
 
 
