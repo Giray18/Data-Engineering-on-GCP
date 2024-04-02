@@ -9,9 +9,15 @@ Below is the flow diagram of established structure
  ![picture alt](flow_diagram.PNG)  
 
  ## Repo elements
- **etl_premier_league_dag_triggered.py** : One dag consisting of 4 task groups being triggered by Google cloud functions when new file added to ingestion bucket. 
+ **etl_premier_league_dag_triggered.py** : One dag consisting of 4 task groups being triggered by Google cloud functions when new file added to ingestion bucket. Below are explanations of task group duties.
 
-   **convert_json_to_jsonl** : Detects required files to be used on DAG by GCSObjectsWithPrefixExistenceSensor and pushes name of related files to XCOM storage.
+   **convert_json_to_jsonl** : Detects required files to be used on DAG by GCSObjectsWithPrefixExistenceSensor and pushes name of related files to XCOM storage. Following to that 2 functions named as crate_new_bucket and convert_json_jsonl  gets file names from XCOM and combines files into one file and saves into second storage bucket.
+
+   **load_to_bq** : Loads combined file into big query that was created on previous task group
+
+   **analytical_queries** : Creates views that holding requested analytical queries from ingested table on Bigquery. Applying flattenning functions and creating tabular datasets can be exported by downstream systems.
+
+   
  
 
 
