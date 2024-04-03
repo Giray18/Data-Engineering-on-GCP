@@ -17,7 +17,7 @@ Below is the flow diagram of established structure
 
   * analytical_queries : Creates views that holding requested analytical queries from ingested table on Bigquery. Applying flattenning functions and creating tabular datasets can be exported by downstream systems.
 
-  * delete_from_staging : After all steps completed files located on first ingestion bucket being deleted by dag at this taskgroup.
+  * delete_from_staging : After all steps completed, files located on first ingestion bucket being deleted by dag at this taskgroup.
 
 **cloud function** : Holding python files used to create Cloud function that triggers main dag file
 
